@@ -28,7 +28,7 @@ func TestGetAuthHeader(t *testing.T) {
 				},
 			},
 			expectedHeader: "Authorization",
-			expectedValue:  "Basic dGVzdC11c2VyOnRlc3QtcGFzcw==", // Base64 of "test-user:test-pass"
+			expectedValue:  "Basic dGVzdC11c2VyOnRlc3QtcGFzcw==",
 		},
 		{
 			name: "API Key Authentication",
@@ -79,7 +79,6 @@ func TestGetAuthHeader(t *testing.T) {
 	}
 }
 
-// Mock OAuth2 Token Server
 func TestOAuth2Authentication(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

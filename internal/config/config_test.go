@@ -245,3 +245,31 @@ probe:
 		})
 	}
 }
+
+func TestEnvVariableReplacement(t *testing.T) {
+	os.Setenv("TEST_USERNAME", "env-user")
+	os.Setenv("TEST_PASSWORD", "env-pass")
+	defer os.Clearenv()
+
+	yamlData := `
+auth:
+  enabled: true
+  type: "basic"
+  basic:
+    username: "${TEST_USERNAME}"
+    password: "$(TEST_PASSWORD)"
+`
+
+	tmpFile, err := os.CreateTemp("", "config_test_*.yaml")
+	assert.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	_, err = tmpFile.WriteString(yamlData)
+	assert.NoError(t, err)
+	tmpFile.Close()
+
+	cfg, err := LoadConfig(tmpFile.Name())
+	assert.NoError(t, err)
+	assert.Equal(t, "env-user", cfg.Auth.Basic.Username)
+	assert.Equal(t, "env-pass", cfg.Auth.Basic.Password)
+}

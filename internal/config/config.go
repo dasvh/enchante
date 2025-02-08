@@ -3,8 +3,10 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
 
 	"github.com/goccy/go-yaml"
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -63,6 +65,11 @@ type Endpoint struct {
 }
 
 func LoadConfig(filename string) (*Config, error) {
+	err := godotenv.Load()
+	if err := godotenv.Load(); err != nil {
+		fmt.Println("Warning: .env file not found. Continuing with YAML config...")
+	}
+
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("error reading config file: %w", err)
@@ -74,5 +81,34 @@ func LoadConfig(filename string) (*Config, error) {
 		return nil, fmt.Errorf("error parsing YAML: %w", err)
 	}
 
+	replaceEnvVariables(&config)
+
 	return &config, nil
+}
+
+func replaceEnvVariables(config *Config) {
+	config.Auth.Basic.Username = replaceEnv(config.Auth.Basic.Username)
+	config.Auth.Basic.Password = replaceEnv(config.Auth.Basic.Password)
+	config.Auth.APIKey.Header = replaceEnv(config.Auth.APIKey.Header)
+	config.Auth.APIKey.Value = replaceEnv(config.Auth.APIKey.Value)
+	config.Auth.OAuth2.TokenURL = replaceEnv(config.Auth.OAuth2.TokenURL)
+	config.Auth.OAuth2.ClientID = replaceEnv(config.Auth.OAuth2.ClientID)
+	config.Auth.OAuth2.ClientSecret = replaceEnv(config.Auth.OAuth2.ClientSecret)
+	config.Auth.OAuth2.GrantType = replaceEnv(config.Auth.OAuth2.GrantType)
+	config.Auth.OAuth2.Username = replaceEnv(config.Auth.OAuth2.Username)
+	config.Auth.OAuth2.Password = replaceEnv(config.Auth.OAuth2.Password)
+}
+
+var (
+	regexCurlyBraces = regexp.MustCompile(`\$\{([^}]+)}`)
+	regexParentheses = regexp.MustCompile(`\$\(([^)]+)\)`)
+)
+
+func replaceEnv(value string) string {
+	if match := regexCurlyBraces.FindStringSubmatch(value); match != nil {
+		return os.Getenv(match[1])
+	} else if match := regexParentheses.FindStringSubmatch(value); match != nil {
+		return os.Getenv(match[1])
+	}
+	return value
 }

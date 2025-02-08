@@ -20,7 +20,6 @@ func GetAuthHeader(cfg *config.Config) (string, string, error) {
 		return cfg.Auth.APIKey.Header, cfg.Auth.APIKey.Value, nil
 	case "basic":
 		encoded := base64.StdEncoding.EncodeToString([]byte(cfg.Auth.Basic.Username + ":" + cfg.Auth.Basic.Password))
-		fmt.Println(cfg.Auth.Basic.Username)
 		return "Authorization", "Basic " + encoded, nil
 	case "oauth2":
 		token, err := getOAuthToken(cfg.Auth.OAuth2)

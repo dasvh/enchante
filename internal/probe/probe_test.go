@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -200,12 +201,13 @@ func TestConcurrentRequests(t *testing.T) {
 }
 
 func TestTotalRequestsCount(t *testing.T) {
-	var requestCount int
+	var requestCount int32 // Use int32 instead of int
+
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
 		if r.Method == "GET" {
-			requestCount++
+			atomic.AddInt32(&requestCount, 1) // Safe atomic increment
 		}
+		w.WriteHeader(http.StatusOK)
 	}))
 	defer mockServer.Close()
 
@@ -225,7 +227,7 @@ func TestTotalRequestsCount(t *testing.T) {
 	elapsed := time.Since(start)
 
 	assert.Greater(t, elapsed, time.Duration(0))
-	assert.Equal(t, 5, requestCount)
+	assert.Equal(t, int32(5), requestCount)
 }
 
 func TestRunProbeHandlesCancellation(t *testing.T) {

@@ -2,6 +2,7 @@ package logger_test
 
 import (
 	"bytes"
+	"context"
 	"log/slog"
 	"testing"
 
@@ -27,7 +28,7 @@ func TestLoggerLevels(t *testing.T) {
 			l := logger.NewCustomHandler(&buf, slog.HandlerOptions{Level: tt.level}, true)
 			log := slog.New(l)
 
-			log.LogAttrs(nil, tt.level, tt.message)
+			log.LogAttrs(context.TODO(), tt.level, tt.message)
 
 			got := buf.String()
 			assert.Contains(t, got, tt.want, "Expected level %s in log output", tt.want)

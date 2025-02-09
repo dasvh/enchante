@@ -78,8 +78,7 @@ type Endpoint struct {
 
 // LoadConfig loads the config from YAML and environment variables
 func LoadConfig(filename string, logger *slog.Logger) (*Config, error) {
-	err := godotenv.Load()
-	if err := godotenv.Load(); err != nil {
+	if envErr := godotenv.Load(); envErr != nil {
 		logger.Debug("No .env file found, continuing with YAML config")
 	}
 

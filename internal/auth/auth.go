@@ -43,8 +43,8 @@ func GetAuthHeader(cfg *config.Config, logger *slog.Logger) (string, string, err
 // getOAuthToken retrieves an OAuth2 token using the provided configuration
 func getOAuthToken(auth config.OAuth2Auth, logger *slog.Logger) (string, error) {
 	logger.Debug("Requesting OAuth2 token", "url", auth.TokenURL, "client_id", auth.ClientID)
-	data := fmt.Sprintf("client_id=%s&client_secret=%s&username=%s&password=%s&grant_type=%s",
-		auth.ClientID, auth.ClientSecret, auth.Username, auth.Password, auth.GrantType)
+	data := fmt.Sprintf("client_id=%s&client_secret=%s&username=%s&password=%s&grant_type=%s&scope=%s",
+		auth.ClientID, auth.ClientSecret, auth.Username, auth.Password, auth.GrantType, auth.Scope)
 
 	req, err := http.NewRequest("POST", auth.TokenURL, bytes.NewBufferString(data))
 	if err != nil {

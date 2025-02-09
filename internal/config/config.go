@@ -48,6 +48,7 @@ type OAuth2Auth struct {
 	GrantType    string `yaml:"grant_type"`
 	Username     string `yaml:"username"`
 	Password     string `yaml:"password"`
+	Scope        string `yaml:"scope,omitempty"`
 }
 
 // ProbingConfig represents the probing configuration

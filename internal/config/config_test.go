@@ -27,6 +27,7 @@ auth:
     grant_type: "password"
     username: "user"
     password: "pass"
+    scope: "openid profile email"
 `,
 			expected: AuthConfig{
 				Enabled: true,
@@ -38,6 +39,7 @@ auth:
 					GrantType:    "password",
 					Username:     "user",
 					Password:     "pass",
+					Scope:        "openid profile email",
 				},
 			},
 		},

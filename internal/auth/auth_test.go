@@ -99,6 +99,7 @@ func TestOAuth2Authentication(t *testing.T) {
 				Username:     "user",
 				Password:     "pass",
 				GrantType:    "password",
+				Scope:        "openid profile email",
 			},
 		},
 	}
@@ -141,6 +142,7 @@ func TestOAuth2Errors(t *testing.T) {
 						Username:     "user",
 						Password:     "pass",
 						GrantType:    "password",
+						Scope:        "openid profile email",
 					},
 				},
 			}

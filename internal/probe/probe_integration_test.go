@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -73,15 +74,25 @@ func TestProbeWithOAuth2(t *testing.T) {
 	defer tokenServer.Close()
 
 	var receivedToken string
+	var mu sync.Mutex
+
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		receivedToken = r.Header.Get("Authorization")
-		if receivedToken != "Bearer "+fakeToken {
+		mu.Unlock()
+
+		mu.Lock()
+		token := receivedToken
+		mu.Unlock()
+
+		if token != "Bearer "+fakeToken {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"message": "Authenticated request success"}`))
 	}))
+
 	defer apiServer.Close()
 
 	t.Logf("OAuth2 server running at: %s", tokenServer.URL)

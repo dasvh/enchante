@@ -1,36 +1,33 @@
 package main
 
 import (
-	"fmt"
+	"flag"
+	"log/slog"
 	"os"
 
-	"github.com/joho/godotenv"
-
-	"github.com/dasvh/enchante/internal/auth"
 	"github.com/dasvh/enchante/internal/config"
+	"github.com/dasvh/enchante/internal/probe"
 )
 
+var logger *slog.Logger
+
+func init() {
+	logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
+}
+
 func main() {
-	loadedConfig, err := config.LoadConfig("testdata/BasicAuthNoDelay.yaml")
+	configFile := flag.String("config", "testdata/BasicAuthNoDelay.yaml", "Path to the probe configuration file")
+	flag.Parse()
+
+	logger.Info("Loading configuration", "file", *configFile)
+
+	cfg, err := config.LoadConfig(*configFile, logger)
 	if err != nil {
-		return
+		logger.Error("Failed to load config", "error", err)
+		os.Exit(1)
 	}
 
-	fmt.Println(loadedConfig.Auth.Enabled)
-	fmt.Println(loadedConfig.ProbingConfig.ConcurrentRequests)
+	logger.Info("Loaded config", "config", cfg)
 
-	header, value, err := auth.GetAuthHeader(loadedConfig)
-	if err != nil {
-		return
-	}
-
-	fmt.Println(header)
-	fmt.Println(value)
-
-	err = godotenv.Load()
-	if err != nil {
-		return
-	}
-
-	fmt.Println("BASIC_USERNAME: ", os.Getenv("BASIC_USERNAME"))
+	probe.RunProbe(cfg, logger)
 }

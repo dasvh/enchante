@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/dasvh/enchante/internal/config"
+	"github.com/dasvh/enchante/internal/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -67,7 +68,7 @@ func TestGetAuthHeader(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := &config.Config{Auth: tc.authCfg}
-			header, value, err := GetAuthHeader(cfg)
+			header, value, err := GetAuthHeader(cfg, testutil.Logger)
 
 			if tc.expectErr {
 				assert.Error(t, err)
@@ -102,7 +103,7 @@ func TestOAuth2Authentication(t *testing.T) {
 		},
 	}
 
-	header, value, err := GetAuthHeader(cfg)
+	header, value, err := GetAuthHeader(cfg, testutil.Logger)
 	assert.NoError(t, err)
 	assert.Equal(t, "Authorization", header)
 	assert.Equal(t, "Bearer mocked-token", value)
@@ -144,7 +145,7 @@ func TestOAuth2Errors(t *testing.T) {
 				},
 			}
 
-			_, _, err := GetAuthHeader(cfg)
+			_, _, err := GetAuthHeader(cfg, testutil.Logger)
 
 			if tc.expectErr == nil {
 				assert.NoError(t, err, "Unexpected error")

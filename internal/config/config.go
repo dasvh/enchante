@@ -2,10 +2,12 @@ package config
 
 import (
 	"fmt"
-	"github.com/goccy/go-yaml"
-	"github.com/joho/godotenv"
+	"log/slog"
 	"os"
 	"regexp"
+
+	"github.com/goccy/go-yaml"
+	"github.com/joho/godotenv"
 )
 
 const DefaultRequestTimeout = 2000
@@ -66,20 +68,22 @@ type Endpoint struct {
 	Headers map[string]string `yaml:"headers,omitempty"`
 }
 
-func LoadConfig(filename string) (*Config, error) {
+func LoadConfig(filename string, logger *slog.Logger) (*Config, error) {
 	err := godotenv.Load()
 	if err := godotenv.Load(); err != nil {
-		fmt.Println("Warning: .env file not found. Continuing with YAML config...")
+		logger.Warn("No .env file found, continuing with YAML config")
 	}
 
 	data, err := os.ReadFile(filename)
 	if err != nil {
+		logger.Error("Failed to read config file", "file", filename, "error", err)
 		return nil, fmt.Errorf("error reading config file: %w", err)
 	}
 
 	var config Config
 	err = yaml.Unmarshal(data, &config)
 	if err != nil {
+		logger.Error("Failed to parse YAML", "file", filename, "error", err)
 		return nil, fmt.Errorf("error parsing YAML: %w", err)
 	}
 
@@ -88,6 +92,8 @@ func LoadConfig(filename string) (*Config, error) {
 	if config.ProbingConfig.RequestTimeoutMS == 0 {
 		config.ProbingConfig.RequestTimeoutMS = DefaultRequestTimeout
 	}
+
+	logger.Info("Config loaded successfully", "file", filename)
 	return &config, nil
 }
 

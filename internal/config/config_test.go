@@ -1,9 +1,11 @@
 package config
 
 import (
-	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
+
+	"github.com/dasvh/enchante/internal/testutil"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAuthConfig(t *testing.T) {
@@ -100,7 +102,7 @@ auth:
 			assert.NoError(t, err)
 			tmpFile.Close()
 
-			cfg, err := LoadConfig(tmpFile.Name())
+			cfg, err := LoadConfig(tmpFile.Name(), testutil.Logger)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, cfg.Auth)
 		})
@@ -168,7 +170,7 @@ probe:
 			assert.NoError(t, err)
 			tmpFile.Close()
 
-			cfg, err := LoadConfig(tmpFile.Name())
+			cfg, err := LoadConfig(tmpFile.Name(), testutil.Logger)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, cfg.ProbingConfig)
 		})
@@ -241,7 +243,7 @@ probe:
 			assert.NoError(t, err)
 			tmpFile.Close()
 
-			cfg, err := LoadConfig(tmpFile.Name())
+			cfg, err := LoadConfig(tmpFile.Name(), testutil.Logger)
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expected, cfg.ProbingConfig.Endpoints)
 		})
@@ -270,7 +272,7 @@ auth:
 	assert.NoError(t, err)
 	tmpFile.Close()
 
-	cfg, err := LoadConfig(tmpFile.Name())
+	cfg, err := LoadConfig(tmpFile.Name(), testutil.Logger)
 	assert.NoError(t, err)
 	assert.Equal(t, "env-user", cfg.Auth.Basic.Username)
 	assert.Equal(t, "env-pass", cfg.Auth.Basic.Password)

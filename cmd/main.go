@@ -1,33 +1,44 @@
 package main
 
 import (
+	"context"
 	"flag"
-	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/dasvh/enchante/internal/config"
+	"github.com/dasvh/enchante/internal/logger"
 	"github.com/dasvh/enchante/internal/probe"
 )
 
-var logger *slog.Logger
-
-func init() {
-	logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
-}
-
 func main() {
-	configFile := flag.String("config", "testdata/BasicAuthNoDelay.yaml", "Path to the probe configuration file")
+	debug := flag.Bool("debug", false, "Enable debug logging")
+	configFile := flag.String("config", "config.yaml", "Path to the probe configuration file")
 	flag.Parse()
 
-	logger.Info("Loading configuration", "file", *configFile)
+	newLogger := logger.NewLogger(*debug)
+	newLogger.Info("Starting probe service", "debug_enabled", *debug)
 
-	cfg, err := config.LoadConfig(*configFile, logger)
+	cfg, err := config.LoadConfig(*configFile, newLogger)
 	if err != nil {
-		logger.Error("Failed to load config", "error", err)
+		newLogger.Error("Failed to load config", "error", err)
 		os.Exit(1)
 	}
 
-	logger.Info("Loaded config", "config", cfg)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	probe.RunProbe(cfg, logger)
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-signalChan
+		newLogger.Warn("Shutdown signal received, exiting gracefully...")
+		cancel()
+	}()
+
+	probe.RunProbe(ctx, cfg, newLogger)
+
+	newLogger.Info("Probe execution completed")
 }

@@ -1,6 +1,7 @@
 package probe
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,6 +13,8 @@ import (
 	"github.com/dasvh/enchante/internal/testutil"
 	"github.com/stretchr/testify/assert"
 )
+
+var defaultTimeout = time.Duration(config.DefaultRequestTimeout) * time.Millisecond
 
 func TestMakeRequestHandlesErrors(t *testing.T) {
 	tests := []struct {
@@ -39,7 +42,7 @@ func TestMakeRequestHandlesErrors(t *testing.T) {
 
 			results := make(chan time.Duration, 1)
 
-			err := makeRequest(testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, 0, results, testutil.Logger)
+			err := makeRequest(context.Background(), testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, defaultTimeout, results, testutil.Logger)
 			close(results)
 
 			if tc.expectErr == nil {
@@ -55,7 +58,7 @@ func TestMakeRequestHandlesErrors(t *testing.T) {
 
 func TestRequestTimeout(t *testing.T) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer mockServer.Close()
@@ -65,17 +68,18 @@ func TestRequestTimeout(t *testing.T) {
 		Method: "GET",
 	}
 
-	results := make(chan time.Duration, 5)
+	results := make(chan time.Duration, 1)
+	timeout := 10 * time.Millisecond
 
 	start := time.Now()
-	err := makeRequest(testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, 5*time.Millisecond, results, testutil.Logger)
+	err := makeRequest(context.Background(), testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, timeout, results, testutil.Logger)
 	elapsed := time.Since(start).Milliseconds()
 
 	close(results)
 
 	assert.Error(t, err, "Expected a timeout error")
-	assert.Contains(t, err.Error(), "Client.Timeout exceeded", "Expected timeout error message")
-	assert.GreaterOrEqualf(t, elapsed, int64(5), "Expected elapsed time to be at least 5ms, got %d", elapsed)
+	assert.Contains(t, err.Error(), "context deadline exceeded", "Expected timeout error message")
+	assert.GreaterOrEqualf(t, elapsed, int64(timeout.Milliseconds()), "Expected elapsed time to be at least %dms, got %dms", timeout.Milliseconds(), elapsed)
 }
 
 func TestNetworkFailure(t *testing.T) {
@@ -86,7 +90,7 @@ func TestNetworkFailure(t *testing.T) {
 
 	results := make(chan time.Duration, 1)
 
-	err := makeRequest(testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, 100, results, testutil.Logger)
+	err := makeRequest(context.Background(), testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, 100, results, testutil.Logger)
 	close(results)
 
 	assert.Error(t, err, "Expected a network failure error")
@@ -111,7 +115,7 @@ func TestAuthHeaderIsSet(t *testing.T) {
 
 	results := make(chan time.Duration, 1)
 
-	makeRequest(testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, 0, results, testutil.Logger)
+	makeRequest(context.Background(), testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, defaultTimeout, results, testutil.Logger)
 	close(results)
 
 	assert.Len(t, results, 1)
@@ -161,7 +165,7 @@ func TestRequestDelays(t *testing.T) {
 			results := make(chan time.Duration, 1)
 
 			start := time.Now()
-			makeRequest(testEndpoint, "Authorization", "Bearer test-token", tc.delayConfig, 1, results, testutil.Logger)
+			makeRequest(context.Background(), testEndpoint, "Authorization", "Bearer test-token", tc.delayConfig, defaultTimeout, results, testutil.Logger)
 			elapsed := time.Since(start).Milliseconds()
 
 			close(results)
@@ -189,8 +193,78 @@ func TestConcurrentRequests(t *testing.T) {
 	}
 
 	start := time.Now()
-	RunProbe(cfg, testutil.Logger)
+	RunProbe(context.Background(), cfg, testutil.Logger)
 	elapsed := time.Since(start)
 
 	assert.Greater(t, elapsed, time.Duration(0))
+}
+
+func TestTotalRequestsCount(t *testing.T) {
+	var requestCount int
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if r.Method == "GET" {
+			requestCount++
+		}
+	}))
+	defer mockServer.Close()
+
+	cfg := &config.Config{
+		ProbingConfig: config.ProbingConfig{
+			ConcurrentRequests: 2,
+			TotalRequests:      5,
+			RequestTimeoutMS:   10,
+			Endpoints: []config.Endpoint{
+				{URL: mockServer.URL, Method: "GET"},
+			},
+		},
+	}
+
+	start := time.Now()
+	RunProbe(context.Background(), cfg, testutil.Logger)
+	elapsed := time.Since(start)
+
+	assert.Greater(t, elapsed, time.Duration(0))
+	assert.Equal(t, 5, requestCount)
+}
+
+func TestRunProbeHandlesCancellation(t *testing.T) {
+	var requestCount int
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if r.Method == "GET" {
+			requestCount++
+		}
+	}))
+	defer mockServer.Close()
+
+	cfg := &config.Config{
+		ProbingConfig: config.ProbingConfig{
+			ConcurrentRequests: 2,
+			TotalRequests:      10000, // ✅ Reduce total requests
+			DelayBetween: config.Delay{
+				Enabled: true,
+				Type:    "fixed",
+				Fixed:   10,
+			},
+			Endpoints: []config.Endpoint{
+				{URL: mockServer.URL, Method: "GET"},
+			},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go RunProbe(ctx, cfg, testutil.Logger)
+	// cancel after a short delay
+	time.Sleep(250 * time.Nanosecond)
+	cancel()
+
+	// wait for logs to finish writing
+	time.Sleep(100 * time.Millisecond)
+
+	logs := testutil.GetLogs()
+	fmt.Println(logs)
+	assert.Contains(t, logs, "Job queue stopped due to cancellation", "Expected job queue cancellation log")
+	assert.Contains(t, logs, "Worker stopped due to cancellation", "Expected worker cancellation log")
 }

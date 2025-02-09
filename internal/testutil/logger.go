@@ -1,8 +1,14 @@
 package testutil
 
 import (
+	"bytes"
 	"log/slog"
-	"os"
 )
 
-var Logger = slog.New(slog.NewTextHandler(os.Stdout, nil))
+var logBuffer bytes.Buffer
+
+var Logger = slog.New(slog.NewTextHandler(&logBuffer, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+func GetLogs() string {
+	return logBuffer.String()
+}

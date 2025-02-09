@@ -38,30 +38,34 @@ func getOAuthToken(auth config.OAuth2Auth) (string, error) {
 
 	req, err := http.NewRequest("POST", auth.TokenURL, bytes.NewBufferString(data))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create OAuth request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("OAuth request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("OAuth server returned status: %d", resp.StatusCode)
+	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read OAuth response: %w", err)
 	}
 
 	var result map[string]interface{}
 	if err := json.Unmarshal(body, &result); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to parse OAuth response: %w", err)
 	}
 
 	token, ok := result["access_token"].(string)
 	if !ok {
-		return "", fmt.Errorf("token not found in response")
+		return "", fmt.Errorf("access_token not found in response")
 	}
 	return token, nil
 }

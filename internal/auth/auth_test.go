@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -105,4 +106,52 @@ func TestOAuth2Authentication(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "Authorization", header)
 	assert.Equal(t, "Bearer mocked-token", value)
+}
+
+func TestOAuth2Errors(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockResponse   string
+		mockStatusCode int
+		expectErr      error
+	}{
+		{"Valid OAuth2 Response", `{"access_token": "mocked-token"}`, 200, nil},
+		{"Invalid JSON Response", `invalid json`, 200, errors.New("failed to parse OAuth response")},
+		{"Missing Token", `{}`, 200, errors.New("access_token not found in response")},
+		{"OAuth2 Server Error", `{"error": "invalid_request"}`, 400, errors.New("OAuth server returned status")},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.mockStatusCode)
+				w.Write([]byte(tc.mockResponse))
+			}))
+			defer mockServer.Close()
+
+			cfg := &config.Config{
+				Auth: config.AuthConfig{
+					Enabled: true,
+					Type:    "oauth2",
+					OAuth2: config.OAuth2Auth{
+						TokenURL:     mockServer.URL,
+						ClientID:     "client-id",
+						ClientSecret: "client-secret",
+						Username:     "user",
+						Password:     "pass",
+						GrantType:    "password",
+					},
+				},
+			}
+
+			_, _, err := GetAuthHeader(cfg)
+
+			if tc.expectErr == nil {
+				assert.NoError(t, err, "Unexpected error")
+			} else {
+				assert.Error(t, err, "Expected an error but got none")
+				assert.Contains(t, err.Error(), tc.expectErr.Error(), "Expected %v, got %v", tc.expectErr, err)
+			}
+		})
+	}
 }

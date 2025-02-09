@@ -1,10 +1,9 @@
 package config
 
 import (
+	"github.com/stretchr/testify/assert"
 	"os"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestAuthConfig(t *testing.T) {
@@ -120,12 +119,14 @@ func TestProbingConfig(t *testing.T) {
 probe:
   concurrent_requests: 10
   total_requests: 100
+  request_timeout_ms: 440
   delay_between:
     enabled: false
 `,
 			expected: ProbingConfig{
 				ConcurrentRequests: 10,
 				TotalRequests:      100,
+				RequestTimeoutMS:   440,
 				DelayBetween: Delay{
 					Enabled: false,
 				},
@@ -146,6 +147,7 @@ probe:
 			expected: ProbingConfig{
 				ConcurrentRequests: 5,
 				TotalRequests:      50,
+				RequestTimeoutMS:   DefaultRequestTimeout,
 				DelayBetween: Delay{
 					Enabled: true,
 					Type:    "random",

@@ -2,12 +2,13 @@ package config
 
 import (
 	"fmt"
-	"os"
-	"regexp"
-
 	"github.com/goccy/go-yaml"
 	"github.com/joho/godotenv"
+	"os"
+	"regexp"
 )
+
+const DefaultRequestTimeout = 2000
 
 type Config struct {
 	Auth          AuthConfig    `yaml:"auth"`
@@ -45,6 +46,7 @@ type OAuth2Auth struct {
 type ProbingConfig struct {
 	ConcurrentRequests int        `yaml:"concurrent_requests"`
 	TotalRequests      int        `yaml:"total_requests"`
+	RequestTimeoutMS   int        `yaml:"request_timeout_ms,omitempty"`
 	DelayBetween       Delay      `yaml:"delay_between"`
 	Endpoints          []Endpoint `yaml:"endpoints"`
 }
@@ -83,6 +85,9 @@ func LoadConfig(filename string) (*Config, error) {
 
 	replaceEnvVariables(&config)
 
+	if config.ProbingConfig.RequestTimeoutMS == 0 {
+		config.ProbingConfig.RequestTimeoutMS = DefaultRequestTimeout
+	}
 	return &config, nil
 }
 

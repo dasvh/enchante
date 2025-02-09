@@ -2,6 +2,7 @@ package probe
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -13,9 +14,15 @@ import (
 	"github.com/dasvh/enchante/internal/config"
 )
 
+var (
+	ErrRequestFailed = errors.New("request error")
+	ErrStatusCode    = errors.New("received non-200 status code")
+)
+
 func RunProbe(cfg *config.Config) {
 	var wg sync.WaitGroup
 	results := make(chan time.Duration, cfg.ProbingConfig.TotalRequests)
+	errorsChan := make(chan error, cfg.ProbingConfig.TotalRequests)
 
 	header, value, err := auth.GetAuthHeader(cfg)
 	if err != nil {
@@ -32,14 +39,26 @@ func RunProbe(cfg *config.Config) {
 				defer wg.Done()
 				for j := 0; j < cfg.ProbingConfig.TotalRequests/cfg.ProbingConfig.ConcurrentRequests; j++ {
 					wg.Add(1)
-					go makeRequest(ep, header, value, cfg.ProbingConfig.DelayBetween, &wg, results)
+					go func() {
+						err := makeRequest(ep, header, value, cfg.ProbingConfig.DelayBetween, time.Duration(cfg.ProbingConfig.RequestTimeoutMS), &wg, results)
+						if err != nil {
+							errorsChan <- err
+						}
+					}()
 				}
 			}(endpoint)
 		}
 	}
 
-	wg.Wait()
-	close(results)
+	go func() {
+		wg.Wait()
+		close(results)
+		close(errorsChan)
+	}()
+
+	for err := range errorsChan {
+		fmt.Println("Request error:", err)
+	}
 
 	var totalDuration time.Duration
 	count := 0
@@ -48,11 +67,16 @@ func RunProbe(cfg *config.Config) {
 		count++
 	}
 
-	avgTime := totalDuration / time.Duration(count)
-	fmt.Printf("\nCompleted %d requests in %s\n", count, time.Since(startTest))
-	fmt.Printf("Average response time: %s\n", avgTime)
+	if count > 0 {
+		avgTime := totalDuration / time.Duration(count)
+		fmt.Printf("\nCompleted %d requests in %s\n", count, time.Since(startTest))
+		fmt.Printf("Average response time: %s\n", avgTime)
+	} else {
+		fmt.Println("\nNo successful requests.")
+	}
 }
-func makeRequest(endpoint config.Endpoint, authHeader, authValue string, delay config.Delay, wg *sync.WaitGroup, results chan<- time.Duration) {
+
+func makeRequest(endpoint config.Endpoint, authHeader, authValue string, delay config.Delay, timeout time.Duration, wg *sync.WaitGroup, results chan<- time.Duration) error {
 	defer wg.Done()
 
 	if delay.Enabled {
@@ -65,19 +89,18 @@ func makeRequest(endpoint config.Endpoint, authHeader, authValue string, delay c
 	}
 
 	start := time.Now()
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: timeout,
+	}
 
 	var reqBody io.Reader
 	if endpoint.Body != "" {
 		reqBody = bytes.NewReader([]byte(endpoint.Body))
-	} else {
-		reqBody = nil
 	}
 
 	req, err := http.NewRequest(endpoint.Method, endpoint.URL, reqBody)
 	if err != nil {
-		fmt.Println("Request creation error:", err)
-		return
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 
 	for key, value := range endpoint.Headers {
@@ -89,10 +112,14 @@ func makeRequest(endpoint config.Endpoint, authHeader, authValue string, delay c
 
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Request error:", err)
-		return
+		return fmt.Errorf("%w: %v", ErrRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("%w: status code %d", ErrStatusCode, resp.StatusCode)
+	}
+
 	results <- time.Since(start)
+	return nil
 }

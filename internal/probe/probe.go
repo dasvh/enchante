@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -19,20 +20,21 @@ var (
 	ErrStatusCode    = errors.New("received non-200 status code")
 )
 
-func RunProbe(cfg *config.Config) {
+func RunProbe(cfg *config.Config, logger *slog.Logger) {
 	var wg sync.WaitGroup
 	results := make(chan time.Duration, cfg.ProbingConfig.TotalRequests)
 	errorsChan := make(chan error, cfg.ProbingConfig.TotalRequests)
 
-	header, value, err := auth.GetAuthHeader(cfg)
+	header, value, err := auth.GetAuthHeader(cfg, logger)
 	if err != nil {
-		fmt.Println("Error getting authentication header:", err)
+		logger.Error("Error getting authentication header", "error", err)
 		return
 	}
 
 	startTest := time.Now()
+
 	for _, endpoint := range cfg.ProbingConfig.Endpoints {
-		fmt.Printf("Testing: %s %s\n", endpoint.Method, endpoint.URL)
+		logger.Info("Testing", "method", endpoint.Method, "url", endpoint.URL)
 		for i := 0; i < cfg.ProbingConfig.ConcurrentRequests; i++ {
 			wg.Add(1)
 			go func(ep config.Endpoint) {
@@ -40,7 +42,8 @@ func RunProbe(cfg *config.Config) {
 				for j := 0; j < cfg.ProbingConfig.TotalRequests/cfg.ProbingConfig.ConcurrentRequests; j++ {
 					wg.Add(1)
 					go func() {
-						err := makeRequest(ep, header, value, cfg.ProbingConfig.DelayBetween, time.Duration(cfg.ProbingConfig.RequestTimeoutMS), &wg, results)
+						defer wg.Done()
+						err := makeRequest(ep, header, value, cfg.ProbingConfig.DelayBetween, time.Duration(cfg.ProbingConfig.RequestTimeoutMS), results, logger)
 						if err != nil {
 							errorsChan <- err
 						}
@@ -57,7 +60,7 @@ func RunProbe(cfg *config.Config) {
 	}()
 
 	for err := range errorsChan {
-		fmt.Println("Request error:", err)
+		logger.Warn("Request error", "error", err)
 	}
 
 	var totalDuration time.Duration
@@ -69,16 +72,13 @@ func RunProbe(cfg *config.Config) {
 
 	if count > 0 {
 		avgTime := totalDuration / time.Duration(count)
-		fmt.Printf("\nCompleted %d requests in %s\n", count, time.Since(startTest))
-		fmt.Printf("Average response time: %s\n", avgTime)
+		logger.Info("Test completed", "total_requests", count, "duration", time.Since(startTest), "avg_response_time", avgTime)
 	} else {
-		fmt.Println("\nNo successful requests.")
+		logger.Warn("No requests were successful")
 	}
 }
 
-func makeRequest(endpoint config.Endpoint, authHeader, authValue string, delay config.Delay, timeout time.Duration, wg *sync.WaitGroup, results chan<- time.Duration) error {
-	defer wg.Done()
-
+func makeRequest(endpoint config.Endpoint, authHeader, authValue string, delay config.Delay, timeout time.Duration, results chan<- time.Duration, logger *slog.Logger) error {
 	if delay.Enabled {
 		if delay.Type == "random" {
 			sleepTime := rand.Intn(delay.Max-delay.Min) + delay.Min
@@ -100,6 +100,7 @@ func makeRequest(endpoint config.Endpoint, authHeader, authValue string, delay c
 
 	req, err := http.NewRequest(endpoint.Method, endpoint.URL, reqBody)
 	if err != nil {
+		logger.Error("Failed to create request", "url", endpoint.URL, "error", err)
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -112,14 +113,19 @@ func makeRequest(endpoint config.Endpoint, authHeader, authValue string, delay c
 
 	resp, err := client.Do(req)
 	if err != nil {
+		logger.Error("Request failed", "url", endpoint.URL, "error", err)
 		return fmt.Errorf("%w: %v", ErrRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
+		logger.Warn("Received non-200 response", "url", endpoint.URL, "status_code", resp.StatusCode)
 		return fmt.Errorf("%w: status code %d", ErrStatusCode, resp.StatusCode)
 	}
 
-	results <- time.Since(start)
+	elapsed := time.Since(start)
+	results <- elapsed
+
+	logger.Info("Request successful", "url", endpoint.URL, "status_code", resp.StatusCode, "response_time", elapsed)
 	return nil
 }

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/dasvh/enchante/internal/config"
+	"github.com/dasvh/enchante/internal/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -38,11 +38,8 @@ func TestMakeRequestHandlesErrors(t *testing.T) {
 			}
 
 			results := make(chan time.Duration, 1)
-			var wg sync.WaitGroup
-			wg.Add(1)
 
-			err := makeRequest(testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, 0, &wg, results)
-			wg.Wait()
+			err := makeRequest(testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, 0, results, testutil.Logger)
 			close(results)
 
 			if tc.expectErr == nil {
@@ -69,12 +66,9 @@ func TestRequestTimeout(t *testing.T) {
 	}
 
 	results := make(chan time.Duration, 5)
-	var wg sync.WaitGroup
-	wg.Add(1)
 
 	start := time.Now()
-	err := makeRequest(testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, 5*time.Millisecond, &wg, results) // Correct timeout
-	wg.Wait()
+	err := makeRequest(testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, 5*time.Millisecond, results, testutil.Logger)
 	elapsed := time.Since(start).Milliseconds()
 
 	close(results)
@@ -91,11 +85,8 @@ func TestNetworkFailure(t *testing.T) {
 	}
 
 	results := make(chan time.Duration, 1)
-	var wg sync.WaitGroup
-	wg.Add(1)
 
-	err := makeRequest(testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, 100, &wg, results)
-	wg.Wait()
+	err := makeRequest(testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, 100, results, testutil.Logger)
 	close(results)
 
 	assert.Error(t, err, "Expected a network failure error")
@@ -119,13 +110,10 @@ func TestAuthHeaderIsSet(t *testing.T) {
 	}
 
 	results := make(chan time.Duration, 1)
-	var wg sync.WaitGroup
-	wg.Add(1)
 
-	makeRequest(testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, 0, &wg, results)
-
-	wg.Wait()
+	makeRequest(testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, 0, results, testutil.Logger)
 	close(results)
+
 	assert.Len(t, results, 1)
 }
 
@@ -171,12 +159,9 @@ func TestRequestDelays(t *testing.T) {
 			}
 
 			results := make(chan time.Duration, 1)
-			var wg sync.WaitGroup
-			wg.Add(1)
 
 			start := time.Now()
-			makeRequest(testEndpoint, "Authorization", "Bearer test-token", tc.delayConfig, 1, &wg, results)
-			wg.Wait()
+			makeRequest(testEndpoint, "Authorization", "Bearer test-token", tc.delayConfig, 1, results, testutil.Logger)
 			elapsed := time.Since(start).Milliseconds()
 
 			close(results)
@@ -204,7 +189,7 @@ func TestConcurrentRequests(t *testing.T) {
 	}
 
 	start := time.Now()
-	RunProbe(cfg)
+	RunProbe(cfg, testutil.Logger)
 	elapsed := time.Since(start)
 
 	assert.Greater(t, elapsed, time.Duration(0))

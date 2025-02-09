@@ -12,6 +12,7 @@ import (
 	"github.com/dasvh/enchante/internal/config"
 )
 
+// GetAuthHeader returns the header and value for the authentication method specified in the config
 func GetAuthHeader(cfg *config.Config, logger *slog.Logger) (string, string, error) {
 	if !cfg.Auth.Enabled {
 		logger.Info("Authentication is disabled")
@@ -39,8 +40,9 @@ func GetAuthHeader(cfg *config.Config, logger *slog.Logger) (string, string, err
 	}
 }
 
+// getOAuthToken retrieves an OAuth2 token using the provided configuration
 func getOAuthToken(auth config.OAuth2Auth, logger *slog.Logger) (string, error) {
-	logger.Info("Requesting OAuth2 token", "url", auth.TokenURL, "client_id", auth.ClientID)
+	logger.Debug("Requesting OAuth2 token", "url", auth.TokenURL, "client_id", auth.ClientID)
 	data := fmt.Sprintf("client_id=%s&client_secret=%s&username=%s&password=%s&grant_type=%s",
 		auth.ClientID, auth.ClientSecret, auth.Username, auth.Password, auth.GrantType)
 
@@ -82,6 +84,6 @@ func getOAuthToken(auth config.OAuth2Auth, logger *slog.Logger) (string, error) 
 		return "", fmt.Errorf("access_token not found in response")
 	}
 
-	logger.Info("Successfully retrieved OAuth2 token")
+	logger.Debug("Successfully retrieved OAuth2 token")
 	return token, nil
 }

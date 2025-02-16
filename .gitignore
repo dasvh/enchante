@@ -116,3 +116,5 @@ fabric.properties
 !.idea/runConfigurations
 
 # End of https://www.toptal.com/developers/gitignore/api/goland+all,go,dotenv
+# Added by goreleaser init:
+dist/

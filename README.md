@@ -61,7 +61,8 @@ make run ARGS="--config examples/probe_config.yaml"
 Enchante supports the use of environment variables for authentication configuration.
 The `.env` file should be placed in the root directory of the project.
 
-> [!NOTE] Both `$()` and `${}` syntax are supported for environment variables in the configuration file
+> [!NOTE]
+> Both `$()` and `${}` syntax are supported for environment variables in the configuration file
 
 Example for Basic Auth and OAuth2:
 ```shell

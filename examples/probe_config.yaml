@@ -20,7 +20,6 @@ probe:
       body: '{"key": "value"}'
       headers:
         Content-Type: application/json
-    # Endpoint-specific authentication override
     - url: https://special-api.example.com
       method: GET
       auth:
@@ -29,7 +28,6 @@ probe:
         basic:
           username: "$(BASIC_AUTH_USERNAME)"
           password: "$(BASIC_AUTH_PASSWORD)"
-    # This endpoint explicitly disables authentication
     - url: https://public-api.example.com
       method: GET
       auth:

@@ -44,7 +44,7 @@ func TestMakeRequestHandlesErrors(t *testing.T) {
 			results := make(chan time.Duration, 1)
 			headers := map[string]string{"Authorization": "Bearer test-token"}
 
-			err := makeRequest(context.Background(), testEndpoint, headers, config.Delay{}, defaultTimeout, results, testutil.Logger)
+			err := makeRequest(t.Context(), testEndpoint, headers, config.Delay{}, defaultTimeout, results, testutil.Logger)
 			close(results)
 
 			if tc.expectErr == nil {
@@ -75,14 +75,14 @@ func TestRequestTimeout(t *testing.T) {
 	headers := map[string]string{"Authorization": "Bearer test-token"}
 
 	start := time.Now()
-	err := makeRequest(context.Background(), testEndpoint, headers, config.Delay{}, timeout, results, testutil.Logger)
+	err := makeRequest(t.Context(), testEndpoint, headers, config.Delay{}, timeout, results, testutil.Logger)
 	elapsed := time.Since(start).Milliseconds()
 
 	close(results)
 
 	assert.Error(t, err, "Expected a timeout error")
 	assert.Contains(t, err.Error(), "context deadline exceeded", "Expected timeout error message")
-	assert.GreaterOrEqualf(t, elapsed, int64(timeout.Milliseconds()), "Expected elapsed time to be at least %dms, got %dms", timeout.Milliseconds(), elapsed)
+	assert.GreaterOrEqualf(t, elapsed, timeout.Milliseconds(), "Expected elapsed time to be at least %dms, got %dms", timeout.Milliseconds(), elapsed)
 }
 
 func TestNetworkFailure(t *testing.T) {
@@ -94,7 +94,7 @@ func TestNetworkFailure(t *testing.T) {
 	results := make(chan time.Duration, 1)
 	headers := map[string]string{"Authorization": "Bearer test-token"}
 
-	err := makeRequest(context.Background(), testEndpoint, headers, config.Delay{}, 100, results, testutil.Logger)
+	err := makeRequest(t.Context(), testEndpoint, headers, config.Delay{}, 100, results, testutil.Logger)
 	close(results)
 
 	assert.Error(t, err, "Expected a network failure error")
@@ -120,7 +120,7 @@ func TestAuthHeaderIsSet(t *testing.T) {
 	results := make(chan time.Duration, 1)
 	headers := map[string]string{"Authorization": "Bearer test-token"}
 
-	makeRequest(context.Background(), testEndpoint, headers, config.Delay{}, defaultTimeout, results, testutil.Logger)
+	makeRequest(t.Context(), testEndpoint, headers, config.Delay{}, defaultTimeout, results, testutil.Logger)
 	close(results)
 
 	assert.Len(t, results, 1)
@@ -171,7 +171,7 @@ func TestRequestDelays(t *testing.T) {
 			headers := map[string]string{"Authorization": "Bearer test-token"}
 
 			start := time.Now()
-			makeRequest(context.Background(), testEndpoint, headers, tc.delayConfig, defaultTimeout, results, testutil.Logger)
+			makeRequest(t.Context(), testEndpoint, headers, tc.delayConfig, defaultTimeout, results, testutil.Logger)
 			elapsed := time.Since(start).Milliseconds()
 
 			close(results)
@@ -199,7 +199,7 @@ func TestConcurrentRequests(t *testing.T) {
 	}
 
 	start := time.Now()
-	RunProbe(context.Background(), cfg, testutil.Logger)
+	RunProbe(t.Context(), cfg, testutil.Logger)
 	elapsed := time.Since(start)
 
 	assert.Greater(t, elapsed, time.Duration(0))
@@ -228,7 +228,7 @@ func TestTotalRequestsCount(t *testing.T) {
 	}
 
 	start := time.Now()
-	RunProbe(context.Background(), cfg, testutil.Logger)
+	RunProbe(t.Context(), cfg, testutil.Logger)
 	elapsed := time.Since(start)
 
 	assert.Greater(t, elapsed, time.Duration(0))
@@ -260,7 +260,7 @@ func TestRunProbeHandlesCancellation(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	go RunProbe(ctx, cfg, testutil.Logger)
 	// cancel after a short delay
@@ -304,7 +304,7 @@ func TestEndpointUsesGlobalAuth(t *testing.T) {
 	headers, _ := getHeadersForEndpoint(testEndpoint, &globalAuth, testutil.Logger)
 
 	results := make(chan time.Duration, 1)
-	makeRequest(context.Background(), testEndpoint, headers, config.Delay{}, defaultTimeout, results, testutil.Logger)
+	makeRequest(t.Context(), testEndpoint, headers, config.Delay{}, defaultTimeout, results, testutil.Logger)
 	close(results)
 
 	assert.Len(t, results, 1)
@@ -348,7 +348,7 @@ func TestEndpointOverridesAuth(t *testing.T) {
 	headers, _ := getHeadersForEndpoint(testEndpoint, &globalAuth, testutil.Logger)
 
 	results := make(chan time.Duration, 1)
-	makeRequest(context.Background(), testEndpoint, headers, config.Delay{}, defaultTimeout, results, testutil.Logger)
+	makeRequest(t.Context(), testEndpoint, headers, config.Delay{}, defaultTimeout, results, testutil.Logger)
 	close(results)
 
 	assert.Len(t, results, 1)

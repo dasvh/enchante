@@ -1,7 +1,6 @@
 package probe
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -47,7 +46,7 @@ func TestProbeAgainstLocalServer(t *testing.T) {
 	}
 
 	start := time.Now()
-	RunProbe(context.Background(), cfg, testutil.Logger)
+	RunProbe(t.Context(), cfg, testutil.Logger)
 	elapsed := time.Since(start)
 
 	assert.Greater(t, elapsed, time.Duration(0), "Probe should have taken > 0s")
@@ -135,7 +134,7 @@ func TestProbeWithAuthOverrides(t *testing.T) {
 		},
 	}
 
-	RunProbe(context.Background(), cfg, testutil.Logger)
+	RunProbe(t.Context(), cfg, testutil.Logger)
 
 	assert.Equal(t, 3, len(receivedHeaders), "Expected 3 requests to be made")
 	assert.Equal(t, "Bearer "+globalToken, receivedHeaders[0], "Expected first request to use global auth token")

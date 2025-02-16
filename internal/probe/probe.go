@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/dasvh/enchante/internal/auth"
 	"io"
 	"log/slog"
 	"math/rand"
@@ -13,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dasvh/enchante/internal/auth"
 	"github.com/dasvh/enchante/internal/config"
 )
 
@@ -27,12 +27,6 @@ func RunProbe(ctx context.Context, cfg *config.Config, logger *slog.Logger) {
 	var wg sync.WaitGroup
 	results := make(chan time.Duration, cfg.ProbingConfig.TotalRequests)
 	jobs := make(chan config.Endpoint, cfg.ProbingConfig.TotalRequests)
-
-	header, value, authErr := auth.GetAuthHeader(cfg, logger)
-	if authErr != nil {
-		logger.Error("Error getting authentication header", "error", authErr)
-		return
-	}
 
 	startTest := time.Now()
 	var successCount, failureCount int
@@ -57,8 +51,19 @@ func RunProbe(ctx context.Context, cfg *config.Config, logger *slog.Logger) {
 					}
 
 					logger.Debug("Worker processing request", "worker_id", workerID, "url", endpoint.URL)
-					err := makeRequest(ctx, endpoint, header, value, cfg.ProbingConfig.DelayBetween, time.Duration(cfg.ProbingConfig.RequestTimeoutMS)*time.Millisecond, results, logger)
+					headers, err := getHeadersForEndpoint(endpoint, &cfg.Auth, logger)
+					if err != nil {
+						logger.Error("Error getting headers for endpoint",
+							"url", endpoint.URL,
+							"auth_enabled", endpoint.AuthConfig != nil && endpoint.AuthConfig.Enabled,
+							"error", err)
+						countMutex.Lock()
+						failureCount++
+						countMutex.Unlock()
+						continue
+					}
 
+					err = makeRequest(ctx, endpoint, headers, cfg.ProbingConfig.DelayBetween, time.Duration(cfg.ProbingConfig.RequestTimeoutMS)*time.Millisecond, results, logger)
 					countMutex.Lock()
 					if err != nil {
 						failureCount++
@@ -105,7 +110,7 @@ func RunProbe(ctx context.Context, cfg *config.Config, logger *slog.Logger) {
 	if count > 0 {
 		avgTime := totalDuration / time.Duration(count)
 		logger.Info("Test completed",
-			"total_requests", count,
+			"total_requests", count, // TODO: this is misleading since it doesn't account for failed requests
 			"successful_requests", successCount,
 			"failed_requests", failureCount,
 			"duration", time.Since(startTest),
@@ -116,7 +121,7 @@ func RunProbe(ctx context.Context, cfg *config.Config, logger *slog.Logger) {
 }
 
 // makeRequest makes an HTTP request to the given endpoint and sends the response time to the results channel
-func makeRequest(ctx context.Context, endpoint config.Endpoint, authHeader, authValue string, delay config.Delay, timeout time.Duration, results chan<- time.Duration, logger *slog.Logger) error {
+func makeRequest(ctx context.Context, endpoint config.Endpoint, headers map[string]string, delay config.Delay, timeout time.Duration, results chan<- time.Duration, logger *slog.Logger) error {
 	if delay.Enabled {
 		if delay.Type == "random" {
 			sleepTime := rand.Intn(delay.Max-delay.Min) + delay.Min
@@ -154,13 +159,9 @@ func makeRequest(ctx context.Context, endpoint config.Endpoint, authHeader, auth
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	for key, value := range endpoint.Headers {
+	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
-	if authHeader != "" {
-		req.Header.Set(authHeader, authValue)
-	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; EnchanteBot/1.0)")
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -179,4 +180,33 @@ func makeRequest(ctx context.Context, endpoint config.Endpoint, authHeader, auth
 
 	logger.Debug("Request successful", "url", endpoint.URL, "status_code", resp.StatusCode, "response_time", elapsed)
 	return nil
+}
+
+// getHeadersForEndpoint returns the headers to be used for the given endpoint
+func getHeadersForEndpoint(endpoint config.Endpoint, globalAuth *config.AuthConfig, logger *slog.Logger) (map[string]string, error) {
+	headers := make(map[string]string)
+
+	for key, value := range endpoint.Headers {
+		headers[key] = value
+	}
+
+	authConfig := endpoint.AuthConfig
+	if authConfig == nil {
+		authConfig = globalAuth
+	}
+
+	if authConfig != nil && authConfig.Enabled {
+		logger.Debug("Getting auth header", "auth_type", authConfig.Type)
+		authHeader, authValue, err := auth.GetAuthHeader(authConfig, logger)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get auth header: %w", err)
+		}
+		if authHeader != "" {
+			headers[authHeader] = authValue
+		}
+	}
+
+	headers["User-Agent"] = "Mozilla/5.0 (compatible; EnchanteBot/1.0)"
+
+	return headers, nil
 }

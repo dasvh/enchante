@@ -12,31 +12,31 @@ import (
 	"github.com/dasvh/enchante/internal/config"
 )
 
-// GetAuthHeader returns the header and value for the authentication method specified in the config
-func GetAuthHeader(cfg *config.Config, logger *slog.Logger) (string, string, error) {
-	if !cfg.Auth.Enabled {
+// GetAuthHeader returns the header and value for the authentication method specified in the authConfig
+func GetAuthHeader(authConfig *config.AuthConfig, logger *slog.Logger) (string, string, error) {
+	if !authConfig.Enabled {
 		logger.Info("Authentication is disabled")
 		return "", "", nil
 	}
-	switch cfg.Auth.Type {
+	switch authConfig.Type {
 	case "api_key":
 		logger.Info("Using API Key authentication")
-		return cfg.Auth.APIKey.Header, cfg.Auth.APIKey.Value, nil
+		return authConfig.APIKey.Header, authConfig.APIKey.Value, nil
 	case "basic":
 		logger.Info("Using Basic authentication")
-		encoded := base64.StdEncoding.EncodeToString([]byte(cfg.Auth.Basic.Username + ":" + cfg.Auth.Basic.Password))
+		encoded := base64.StdEncoding.EncodeToString([]byte(authConfig.Basic.Username + ":" + authConfig.Basic.Password))
 		return "Authorization", "Basic " + encoded, nil
 	case "oauth2":
 		logger.Info("Using OAuth2 authentication")
-		token, err := getOAuthToken(cfg.Auth.OAuth2, logger)
+		token, err := getOAuthToken(authConfig.OAuth2, logger)
 		if err != nil {
 			logger.Error("Failed to fetch OAuth token", "error", err)
 			return "", "", err
 		}
 		return "Authorization", "Bearer " + token, nil
 	default:
-		logger.Error("Unsupported authentication type", "auth_type", cfg.Auth.Type)
-		return "", "", fmt.Errorf("unsupported auth type: %s", cfg.Auth.Type)
+		logger.Error("Unsupported authentication type", "auth_type", authConfig.Type)
+		return "", "", fmt.Errorf("unsupported auth type: %s", authConfig.Type)
 	}
 }
 

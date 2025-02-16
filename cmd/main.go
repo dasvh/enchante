@@ -14,7 +14,7 @@ import (
 
 func main() {
 	debug := flag.Bool("debug", false, "Enable debug logging")
-	configFile := flag.String("config", "config.yaml", "Path to the probe configuration file")
+	configFile := flag.String("config", "probe_config.yaml", "Path to the probe configuration file")
 	flag.Parse()
 
 	newLogger := logger.NewLogger(*debug)

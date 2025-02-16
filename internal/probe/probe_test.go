@@ -42,8 +42,9 @@ func TestMakeRequestHandlesErrors(t *testing.T) {
 			}
 
 			results := make(chan time.Duration, 1)
+			headers := map[string]string{"Authorization": "Bearer test-token"}
 
-			err := makeRequest(context.Background(), testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, defaultTimeout, results, testutil.Logger)
+			err := makeRequest(context.Background(), testEndpoint, headers, config.Delay{}, defaultTimeout, results, testutil.Logger)
 			close(results)
 
 			if tc.expectErr == nil {
@@ -71,9 +72,10 @@ func TestRequestTimeout(t *testing.T) {
 
 	results := make(chan time.Duration, 1)
 	timeout := 10 * time.Millisecond
+	headers := map[string]string{"Authorization": "Bearer test-token"}
 
 	start := time.Now()
-	err := makeRequest(context.Background(), testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, timeout, results, testutil.Logger)
+	err := makeRequest(context.Background(), testEndpoint, headers, config.Delay{}, timeout, results, testutil.Logger)
 	elapsed := time.Since(start).Milliseconds()
 
 	close(results)
@@ -90,8 +92,9 @@ func TestNetworkFailure(t *testing.T) {
 	}
 
 	results := make(chan time.Duration, 1)
+	headers := map[string]string{"Authorization": "Bearer test-token"}
 
-	err := makeRequest(context.Background(), testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, 100, results, testutil.Logger)
+	err := makeRequest(context.Background(), testEndpoint, headers, config.Delay{}, 100, results, testutil.Logger)
 	close(results)
 
 	assert.Error(t, err, "Expected a network failure error")
@@ -115,8 +118,9 @@ func TestAuthHeaderIsSet(t *testing.T) {
 	}
 
 	results := make(chan time.Duration, 1)
+	headers := map[string]string{"Authorization": "Bearer test-token"}
 
-	makeRequest(context.Background(), testEndpoint, "Authorization", "Bearer test-token", config.Delay{}, defaultTimeout, results, testutil.Logger)
+	makeRequest(context.Background(), testEndpoint, headers, config.Delay{}, defaultTimeout, results, testutil.Logger)
 	close(results)
 
 	assert.Len(t, results, 1)
@@ -164,9 +168,10 @@ func TestRequestDelays(t *testing.T) {
 			}
 
 			results := make(chan time.Duration, 1)
+			headers := map[string]string{"Authorization": "Bearer test-token"}
 
 			start := time.Now()
-			makeRequest(context.Background(), testEndpoint, "Authorization", "Bearer test-token", tc.delayConfig, defaultTimeout, results, testutil.Logger)
+			makeRequest(context.Background(), testEndpoint, headers, tc.delayConfig, defaultTimeout, results, testutil.Logger)
 			elapsed := time.Since(start).Milliseconds()
 
 			close(results)
@@ -201,11 +206,11 @@ func TestConcurrentRequests(t *testing.T) {
 }
 
 func TestTotalRequestsCount(t *testing.T) {
-	var requestCount int32 // Use int32 instead of int
+	var requestCount int32
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
-			atomic.AddInt32(&requestCount, 1) // Safe atomic increment
+			atomic.AddInt32(&requestCount, 1)
 		}
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -243,7 +248,7 @@ func TestRunProbeHandlesCancellation(t *testing.T) {
 	cfg := &config.Config{
 		ProbingConfig: config.ProbingConfig{
 			ConcurrentRequests: 2,
-			TotalRequests:      10000, // ✅ Reduce total requests
+			TotalRequests:      10000,
 			DelayBetween: config.Delay{
 				Enabled: true,
 				Type:    "fixed",
@@ -269,4 +274,82 @@ func TestRunProbeHandlesCancellation(t *testing.T) {
 	fmt.Println(logs)
 	assert.Contains(t, logs, "Job queue stopped due to cancellation", "Expected job queue cancellation log")
 	assert.Contains(t, logs, "Worker stopped due to cancellation", "Expected worker cancellation log")
+}
+
+func TestEndpointUsesGlobalAuth(t *testing.T) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != "Bearer test-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer mockServer.Close()
+
+	testEndpoint := config.Endpoint{
+		URL:    mockServer.URL,
+		Method: "GET",
+	}
+
+	globalAuth := config.AuthConfig{
+		Enabled: true,
+		Type:    "api_key",
+		APIKey: config.APIKeyAuth{
+			Header: "Authorization",
+			Value:  "Bearer test-token",
+		},
+	}
+
+	headers, _ := getHeadersForEndpoint(testEndpoint, &globalAuth, testutil.Logger)
+
+	results := make(chan time.Duration, 1)
+	makeRequest(context.Background(), testEndpoint, headers, config.Delay{}, defaultTimeout, results, testutil.Logger)
+	close(results)
+
+	assert.Len(t, results, 1)
+}
+
+func TestEndpointOverridesAuth(t *testing.T) {
+	customAuth := config.AuthConfig{
+		Enabled: true,
+		Type:    "api_key",
+		APIKey: config.APIKeyAuth{
+			Header: "Authorization",
+			Value:  "Bearer custom-token",
+		},
+	}
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != "Bearer custom-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer mockServer.Close()
+
+	testEndpoint := config.Endpoint{
+		URL:        mockServer.URL,
+		Method:     "GET",
+		AuthConfig: &customAuth,
+	}
+
+	globalAuth := config.AuthConfig{
+		Enabled: true,
+		Type:    "api_key",
+		APIKey: config.APIKeyAuth{
+			Header: "Authorization",
+			Value:  "Bearer test-token",
+		},
+	}
+
+	headers, _ := getHeadersForEndpoint(testEndpoint, &globalAuth, testutil.Logger)
+
+	results := make(chan time.Duration, 1)
+	makeRequest(context.Background(), testEndpoint, headers, config.Delay{}, defaultTimeout, results, testutil.Logger)
+	close(results)
+
+	assert.Len(t, results, 1)
 }

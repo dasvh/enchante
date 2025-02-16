@@ -279,3 +279,69 @@ auth:
 	assert.Equal(t, "env-user", cfg.Auth.Basic.Username)
 	assert.Equal(t, "env-pass", cfg.Auth.Basic.Password)
 }
+
+func TestEndpointAuthOverride(t *testing.T) {
+	os.Setenv("TEST_CLIENT_ID", "env-client-id")
+	os.Setenv("TEST_CLIENT_SECRET", "env-client-secret")
+	defer os.Clearenv()
+
+	yamlData := `
+auth:
+  enabled: true
+  type: "oauth2"
+  oauth2:
+    token_url: "http://global-auth/token"
+    client_id: "global-client"
+    client_secret: "global-secret"
+    grant_type: "password"
+    username: "global-user"
+    password: "global-pass"
+    scope: "openid profile email"
+probe:
+  endpoints:
+    - url: "https://api.example.com/no-auth"
+      method: "GET"
+      auth:
+        enabled: false
+    - url: "https://api.example.com/override-auth"
+      method: "POST"
+      auth:
+        enabled: true
+        type: "oauth2"
+        oauth2:
+          token_url: "http://override-auth/token"
+          client_id: "${TEST_CLIENT_ID}"
+          client_secret: "$(TEST_CLIENT_SECRET)"
+          grant_type: "password"
+          username: "endpoint-user"
+          password: "endpoint-pass"
+          scope: "custom-scope"
+`
+
+	tmpFile, err := os.CreateTemp("", "config_test_*.yaml")
+	assert.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	_, err = tmpFile.WriteString(yamlData)
+	assert.NoError(t, err)
+	tmpFile.Close()
+
+	cfg, err := LoadConfig(tmpFile.Name(), testutil.Logger)
+	assert.NoError(t, err)
+
+	assert.True(t, cfg.Auth.Enabled)
+	assert.Equal(t, "oauth2", cfg.Auth.Type)
+	assert.Equal(t, "http://global-auth/token", cfg.Auth.OAuth2.TokenURL)
+
+	assert.False(t, cfg.ProbingConfig.Endpoints[0].AuthConfig.Enabled)
+
+	endpointAuth := cfg.ProbingConfig.Endpoints[1].AuthConfig
+	assert.True(t, endpointAuth.Enabled)
+	assert.Equal(t, "oauth2", endpointAuth.Type)
+	assert.Equal(t, "http://override-auth/token", endpointAuth.OAuth2.TokenURL)
+	assert.Equal(t, "env-client-id", endpointAuth.OAuth2.ClientID)
+	assert.Equal(t, "env-client-secret", endpointAuth.OAuth2.ClientSecret)
+	assert.Equal(t, "endpoint-user", endpointAuth.OAuth2.Username)
+	assert.Equal(t, "endpoint-pass", endpointAuth.OAuth2.Password)
+	assert.Equal(t, "custom-scope", endpointAuth.OAuth2.Scope)
+}

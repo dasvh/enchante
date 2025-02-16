@@ -1,0 +1,36 @@
+auth:
+  enabled: true
+  type: basic
+  basic:
+    username: "$(BASIC_USERNAME)"
+    password: ${BASIC_PASSWORD}
+probe:
+  concurrent_requests: 2
+  total_requests: 50
+  request_timeout_ms: 10000
+  delay_between:
+    enabled: true
+    type: fixed
+    fixed: 100
+  endpoints:
+    - url: https://www.google.com
+      method: POST
+    - url: http://localhost:8080
+      method: POST
+      body: '{"key": "value"}'
+      headers:
+        Content-Type: application/json
+    # Endpoint-specific authentication override
+    - url: https://special-api.example.com
+      method: GET
+      auth:
+        enabled: true
+        type: basic
+        basic:
+          username: "$(BASIC_AUTH_USERNAME)"
+          password: "$(BASIC_AUTH_PASSWORD)"
+    # This endpoint explicitly disables authentication
+    - url: https://public-api.example.com
+      method: GET
+      auth:
+        enabled: false

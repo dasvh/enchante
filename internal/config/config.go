@@ -71,10 +71,11 @@ type Delay struct {
 
 // Endpoint represents the configuration for an endpoint to probe
 type Endpoint struct {
-	URL     string            `yaml:"url"`
-	Method  string            `yaml:"method"`
-	Body    string            `yaml:"body,omitempty"`
-	Headers map[string]string `yaml:"headers,omitempty"`
+	URL        string            `yaml:"url"`
+	Method     string            `yaml:"method"`
+	Body       string            `yaml:"body,omitempty"`
+	Headers    map[string]string `yaml:"headers,omitempty"`
+	AuthConfig *AuthConfig       `yaml:"auth,omitempty"`
 }
 
 // LoadConfig loads the config from YAML and environment variables
@@ -108,16 +109,27 @@ func LoadConfig(filename string, logger *slog.Logger) (*Config, error) {
 
 // replaceEnvVariables replaces environment variables for authentication configuration
 func replaceEnvVariables(config *Config, logger *slog.Logger) {
-	config.Auth.Basic.Username = replaceEnv(config.Auth.Basic.Username, logger)
-	config.Auth.Basic.Password = replaceEnv(config.Auth.Basic.Password, logger)
-	config.Auth.APIKey.Header = replaceEnv(config.Auth.APIKey.Header, logger)
-	config.Auth.APIKey.Value = replaceEnv(config.Auth.APIKey.Value, logger)
-	config.Auth.OAuth2.TokenURL = replaceEnv(config.Auth.OAuth2.TokenURL, logger)
-	config.Auth.OAuth2.ClientID = replaceEnv(config.Auth.OAuth2.ClientID, logger)
-	config.Auth.OAuth2.ClientSecret = replaceEnv(config.Auth.OAuth2.ClientSecret, logger)
-	config.Auth.OAuth2.GrantType = replaceEnv(config.Auth.OAuth2.GrantType, logger)
-	config.Auth.OAuth2.Username = replaceEnv(config.Auth.OAuth2.Username, logger)
-	config.Auth.OAuth2.Password = replaceEnv(config.Auth.OAuth2.Password, logger)
+	replaceAuthEnvVars(&config.Auth, logger)
+
+	for i := range config.ProbingConfig.Endpoints {
+		if config.ProbingConfig.Endpoints[i].AuthConfig != nil {
+			replaceAuthEnvVars(config.ProbingConfig.Endpoints[i].AuthConfig, logger)
+		}
+	}
+}
+
+// replaceAuthEnvVars replaces environment variables in an AuthConfig
+func replaceAuthEnvVars(auth *AuthConfig, logger *slog.Logger) {
+	auth.Basic.Username = replaceEnv(auth.Basic.Username, logger)
+	auth.Basic.Password = replaceEnv(auth.Basic.Password, logger)
+	auth.APIKey.Header = replaceEnv(auth.APIKey.Header, logger)
+	auth.APIKey.Value = replaceEnv(auth.APIKey.Value, logger)
+	auth.OAuth2.TokenURL = replaceEnv(auth.OAuth2.TokenURL, logger)
+	auth.OAuth2.ClientID = replaceEnv(auth.OAuth2.ClientID, logger)
+	auth.OAuth2.ClientSecret = replaceEnv(auth.OAuth2.ClientSecret, logger)
+	auth.OAuth2.GrantType = replaceEnv(auth.OAuth2.GrantType, logger)
+	auth.OAuth2.Username = replaceEnv(auth.OAuth2.Username, logger)
+	auth.OAuth2.Password = replaceEnv(auth.OAuth2.Password, logger)
 }
 
 var (

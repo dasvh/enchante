@@ -124,7 +124,7 @@ probe:
 
 * If global authentication is enabled, all endpoints inherit it
 * If an endpoint defines its own auth config, it overrides the global authentication
-* "If `auth.enabled: false` is set on an endpoint, it explicitly disables authentication for that request."
+* If `auth.enabled: false` is set on an endpoint, it explicitly disables authentication for that request
 
 ## Usage
 
@@ -150,25 +150,7 @@ Enable debug logging for detailed output:
 
 Sample Debug Output:
 
-```shell
-# Go Build
-go build -o=/tmp/bin/enchante cmd/main.go
-/tmp/bin/enchante --config examples/probe_config.yaml --debug
-17:09:15.186 [INFO] enchante/cmd/main.go:21 Starting probe service debug_enabled=true
-17:09:15.187 [DEBUG] internal/config/config.go:146 Replacing environment variable with value variable=BASIC_USERNAME value=admin
-17:09:15.187 [DEBUG] internal/config/config.go:143 Replacing environment variable with value variable=BASIC_PASSWORD value=adminpassword
-17:09:15.187 [INFO] internal/config/config.go:106 Config loaded successfully file=examples/probe_config.yaml
-17:09:15.187 [DEBUG] internal/probe/probe.go:40 Worker started worker_id=0
-17:09:15.187 [DEBUG] internal/probe/probe.go:40 Worker started worker_id=1
-17:09:15.187 [DEBUG] internal/probe/probe.go:40 Worker started worker_id=2
-17:09:15.187 [DEBUG] internal/probe/probe.go:53 Worker processing request worker_id=0 url=https://www.google.com
-17:09:15.187 [DEBUG] internal/probe/probe.go:88 Job added to queue method=POST url=https://www.google.com
-17:09:15.187 [DEBUG] internal/probe/probe.go:199 Getting auth header auth_type=basic
-17:09:15.187 [INFO] internal/auth/auth.go:26 Using Basic authentication
-17:09:15.187 [DEBUG] internal/probe/probe.go:88 Job added to queue method=POST url=http://localhost:8080
-17:09:15.187 [DEBUG] internal/probe/probe.go:88 Job added to queue method=GET url=https://public-api.example.com
-17:09:15.187 [DEBUG] internal/probe/probe.go:53 Worker processing request worker_id=1 url=http://localhost:8080
-```
+![Debug_output_gif](docs/gifs/debug.gif)
 
 ## License
 

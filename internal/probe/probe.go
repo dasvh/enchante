@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"math/rand"
 	"net"
 	"net/http"
@@ -34,7 +35,7 @@ func RunProbe(ctx context.Context, cfg *config.Config, logger *slog.Logger) {
 	var countMutex sync.Mutex
 
 	// start worker routines
-	for worker := 0; worker < cfg.ProbingConfig.ConcurrentRequests; worker++ {
+	for worker := range cfg.ProbingConfig.ConcurrentRequests {
 		wg.Go(func() {
 			logger.Debug("Worker started", "worker_id", worker)
 
@@ -77,7 +78,7 @@ func RunProbe(ctx context.Context, cfg *config.Config, logger *slog.Logger) {
 
 	// add jobs to the queue
 	go func() {
-		for i := 0; i < cfg.ProbingConfig.TotalRequests; i++ {
+		for range cfg.ProbingConfig.TotalRequests {
 			for _, endpoint := range cfg.ProbingConfig.Endpoints {
 				select {
 				case <-ctx.Done():
@@ -184,10 +185,7 @@ func makeRequest(ctx context.Context, endpoint config.Endpoint, headers map[stri
 // getHeadersForEndpoint returns the headers to be used for the given endpoint
 func getHeadersForEndpoint(endpoint config.Endpoint, globalAuth *config.AuthConfig, logger *slog.Logger) (map[string]string, error) {
 	headers := make(map[string]string)
-
-	for key, value := range endpoint.Headers {
-		headers[key] = value
-	}
+	maps.Copy(headers, endpoint.Headers)
 
 	authConfig := endpoint.AuthConfig
 	if authConfig == nil {

@@ -72,7 +72,7 @@ func getOAuthToken(auth config.OAuth2Auth, logger *slog.Logger) (string, error) 
 		return "", fmt.Errorf("failed to read OAuth response: %w", err)
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal(body, &result); err != nil {
 		logger.Error("Failed to parse OAuth2 response", "error", err)
 		return "", fmt.Errorf("failed to parse OAuth response: %w", err)

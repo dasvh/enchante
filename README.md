@@ -26,7 +26,7 @@ With a simple YAML configuration file, you can define endpoints, request setting
 
 ### Prerequisites
 
-- Go `1.24.0`
+- Go `1.25.0`
 
 #### Install via `go install`
 

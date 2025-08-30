@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/dasvh/enchante/internal/auth"
 	"io"
 	"log/slog"
 	"math/rand"
@@ -13,6 +12,8 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/dasvh/enchante/internal/auth"
 
 	"github.com/dasvh/enchante/internal/config"
 )
@@ -33,24 +34,22 @@ func RunProbe(ctx context.Context, cfg *config.Config, logger *slog.Logger) {
 	var countMutex sync.Mutex
 
 	// start worker routines
-	for i := 0; i < cfg.ProbingConfig.ConcurrentRequests; i++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-			logger.Debug("Worker started", "worker_id", workerID)
+	for worker := 0; worker < cfg.ProbingConfig.ConcurrentRequests; worker++ {
+		wg.Go(func() {
+			logger.Debug("Worker started", "worker_id", worker)
 
 			for {
 				select {
 				case <-ctx.Done(): // check if the context has been cancelled
-					logger.Warn("Worker stopped due to cancellation", "worker_id", workerID)
+					logger.Warn("Worker stopped due to cancellation", "worker_id", worker)
 					return
 				case endpoint, ok := <-jobs:
 					if !ok {
-						logger.Debug("Worker finished", "worker_id", workerID)
+						logger.Debug("Worker finished", "worker_id", worker)
 						return
 					}
 
-					logger.Debug("Worker processing request", "worker_id", workerID, "url", endpoint.URL)
+					logger.Debug("Worker processing request", "worker_id", worker, "url", endpoint.URL)
 					headers, err := getHeadersForEndpoint(endpoint, &cfg.Auth, logger)
 					if err != nil {
 						logger.Error("Error getting headers for endpoint",
@@ -73,7 +72,7 @@ func RunProbe(ctx context.Context, cfg *config.Config, logger *slog.Logger) {
 					countMutex.Unlock()
 				}
 			}
-		}(i)
+		})
 	}
 
 	// add jobs to the queue

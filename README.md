@@ -15,7 +15,7 @@ With a simple YAML configuration file, you can define endpoints, request setting
 
 ### Features
 - Send HTTP requests concurrently
-- Configurable authentication (API key, Basic Auth, Bearer token)
+- Configurable authentication (API key, Basic Auth, OAuth2/Bearer token)
 - Endpoint-specific authentication overrides (use global auth or define per-endpoint auth)
 - Custom request headers and body
 - Request delay options (fixed, random)
@@ -26,7 +26,7 @@ With a simple YAML configuration file, you can define endpoints, request setting
 
 ### Prerequisites
 
-- Go `1.25.0`
+- Go `1.26.0`
 
 #### Install via `go install`
 
@@ -66,8 +66,8 @@ The `.env` file should be placed in the root directory of the project.
 
 Example for Basic Auth and OAuth2:
 ```shell
-BASIC_AUTH_USERNAME=your_username
-BASIC_AUTH_PASSWORD=your_password
+BASIC_USERNAME=your_username
+BASIC_PASSWORD=your_password
 
 TOKEN_URL=https://your-authorization-server/token
 CLIENT_ID=your_client_id
@@ -112,8 +112,8 @@ probe:
         enabled: true
         type: basic
         basic:
-          username: "$(BASIC_AUTH_USERNAME)"
-          password: "$(BASIC_AUTH_PASSWORD)"
+          username: "$(BASIC_USERNAME)"
+          password: "$(BASIC_PASSWORD)"
     - url: https://public-api.example.com
       method: GET
       auth:

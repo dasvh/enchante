@@ -26,8 +26,8 @@ probe:
         enabled: true
         type: basic
         basic:
-          username: "$(BASIC_AUTH_USERNAME)"
-          password: "$(BASIC_AUTH_PASSWORD)"
+          username: "$(BASIC_USERNAME)"
+          password: "$(BASIC_PASSWORD)"
     - url: https://public-api.example.com
       method: GET
       auth:
